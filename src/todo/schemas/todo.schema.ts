@@ -3,23 +3,22 @@ import { Document } from 'mongoose';
 
 export type TodoDocument = Todo & Document;
 
-@Schema()
+@Schema({ timestamps: true, versionKey: false })
 export class Todo {
-
-    @Prop({required: true})
-        id: number;
+    @Prop({ required: true, unique: true })
+    public id: number;
 
     @Prop()
-        contents: string;
+    public contents: string;
 
     @Prop({default: false})
-        isCompleted: boolean;
+    public isCompleted: boolean;
 
     @Prop()
-        refIds: number[];
+    public refIds: number[];
 
     @Prop()
-        deletedAt: Date;
+    public deletedAt: Date;
 }
 
 export const TodoSchema = SchemaFactory.createForClass(Todo);

@@ -1,13 +1,12 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateTodoDto {
     @IsString()
-    readonly title: string;
+    readonly contents: string;
 
-    @IsNumber()
-    readonly year: number;
+    @IsBoolean()
+    readonly isCompleted: boolean;
 
     @IsOptional()
-    @IsString({ each: true })
-    readonly genres: string[];
+    readonly refIds: number[];
 }
