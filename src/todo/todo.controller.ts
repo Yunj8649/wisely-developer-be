@@ -13,7 +13,7 @@ import { TodoService } from './todo.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { Todo } from './schemas/todo.schema';
-import { SearchType } from './interfaces/todo.interface';
+import { SearchType, Pagination } from './interfaces/todo.interface';
 
 @Controller('todo')
 export class TodoController {
@@ -28,8 +28,7 @@ export class TodoController {
     }
 
     @Get()
-    async findAll(@Query() querystring: SearchType): Promise<Todo[]> {
-        console.log(this.config.get('MONGODB_URI'));
+    async findAll(@Query() querystring: SearchType): Promise<{data: Todo[]; pagination: Pagination}> {
         return await this.todoService.findAll(querystring);
     }
 

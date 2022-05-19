@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { startOfDay } from 'date-fns';
+import { Injectable, HttpStatus, HttpException } from '@nestjs/common';
+import { startOfDay, endOfDay } from 'date-fns';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { Todo, TodoDocument } from './schemas/todo.schema';
-import { SearchType, QueryType } from './interfaces/todo.interface';
+import { SearchType, QueryType, Pagination } from './interfaces/todo.interface';
 
 @Injectable()
 export class TodoService {
@@ -17,7 +17,7 @@ export class TodoService {
         return await createdTodo.save();
     }
 
-    async findAll(querystring: SearchType): Promise<Todo[]> {
+    async findAll(querystring: SearchType): Promise<{data: Todo[]; pagination: Pagination}> {
         const { 
             createdFrom, createdTo, 
             updatedFrom, updatedTo, 
@@ -39,23 +39,32 @@ export class TodoService {
         if (createdFrom && createdTo) {
             query.createdAt = {
                 $gte: startOfDay(new Date(createdFrom)),
-                $lte: startOfDay(new Date(createdTo))
+                $lte: endOfDay(new Date(createdTo))
             } 
         }
 
         if (updatedFrom && updatedTo) {
             query.updatedAt = {
                 $gte: startOfDay(new Date(updatedFrom)),
-                $lte: startOfDay(new Date(updatedTo))
+                $lte: endOfDay(new Date(updatedTo))
             } 
         }
 
-        if ( isCompleted == true || isCompleted == false) {
-            query.isCompleted = isCompleted;
+        if ( isCompleted !== null && isCompleted !== undefined && typeof Boolean( isCompleted ) === 'boolean' ) {
+            const isCompletedBool: boolean = isCompleted;
+            query.isCompleted = isCompletedBool;
         }
 
         const result = await this.todoModel.find( query ).skip( skip ).limit( limit ).sort({ _id: -1 }).exec();
-        return result;
+        const total = await this.todoModel.count( query ).exec();
+        return {
+            data: result,
+            pagination: {
+                page,
+                limit,
+                total
+            }
+        };
     }
 
     async findOne(id: number) {
@@ -63,19 +72,86 @@ export class TodoService {
     }
 
     async update(id: number, updateTodoDto: UpdateTodoDto) {
+        const todo = await this.todoModel.findOne({ deletedAt: null, id }).exec();
+        if ( !todo ) {
+            throw new HttpException({
+                code: HttpStatus.NOT_FOUND,
+                error: `TODO_${id}_NOT_FOUND`,
+                message: 'todo를 찾을 수 없습니다.',
+            }, HttpStatus.NOT_FOUND);
+        }
+        const { contents = null, isCompleted, refIds } = updateTodoDto;
+
+        if ( contents !== null && contents.length === 0 ) {
+            throw new HttpException({
+                code: HttpStatus.BAD_REQUEST,
+                error: 'REQUIRED_CONTENTS',
+                message: 'todo 내용을 작성해주세요.',
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        if ( refIds ) {
+            let refIdsCheck = await this.refIdsValidation(todo.refIds, refIds);
+            let message = '올바르지 않은 todo id가 포함되어 있습니다.';
+            if (refIds.includes(id)) {
+                message = '본인 id는 포함 할 수 없습니다.';
+                refIdsCheck = false;
+            }
+            if ( !refIdsCheck ) {
+                throw new HttpException({
+                    code: HttpStatus.BAD_REQUEST,
+                    error: 'CHECK_REQUIRED_REF_IDS',
+                    message,
+                }, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        if ( isCompleted && Boolean( isCompleted ) ) {
+            const refTodos = await this.todoModel.find({ id: { $in: todo.refIds }}).exec();
+            const completedTodos = refTodos.filter(todo => todo.isCompleted);
+            if ( completedTodos.length !== (todo.refIds).length ) {
+                throw new HttpException({
+                    code: HttpStatus.BAD_REQUEST,
+                    error: 'REQUIRED_ALL_REFTODO_COMPLETED',
+                    message: '참조된 todo 중 완료되지 않은 todo가 있습니다.',
+                }, HttpStatus.BAD_REQUEST);
+            }
+        }
+
         return await this.todoModel.findOneAndUpdate(
             { id },
             { $set: { 
+                ...updateTodoDto,
                 updatedAt: new Date(),
-                ...updateTodoDto 
             } },
             { new: true },
         );
     }
 
     async remove(id: number) {
-        const todo = await this.todoModel.findOne({ deletedAt: null, id }).exec();
-        todo.deletedAt = new Date();
+        const refTodos = await this.todoModel.find({ refIds: { $in: id }, deletedAt: null }).exec();
+        if ( refTodos.length > 0 ) {
+            throw new HttpException({
+                code: HttpStatus.BAD_REQUEST,
+                error: 'IS_TODO_USE_REF_IDS',
+                message: '해당 todo가 참조된 곳이 존재합니다.',
+            }, HttpStatus.BAD_REQUEST);
+        }
+        const todo = await this.todoModel.findOne({ deletedAt: null, id });
+        todo.set({ deletedAt: new Date()});
         return await todo.save();
+        // return await this.todoModel.remove({ id }); // 이건 완전 삭제
+    }
+
+    async refIdsValidation(refIds: number[], updateRefIds: number[]) {
+        let pass = true;
+        const diffRefIds = updateRefIds.filter(id=> !(refIds).includes(id));
+        if ( diffRefIds.length !== 0 || (refIds.length !== updateRefIds.length)) {
+            const refTodos = await this.todoModel.find({ id: { $in: updateRefIds }, deletedAt: null }).exec();
+            if ( refTodos.length !== updateRefIds.length ) {
+                pass = false;
+            }
+        }
+        return pass;
     }
 }

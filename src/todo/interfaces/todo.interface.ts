@@ -16,3 +16,9 @@ export interface QueryType {
     isCompleted?: boolean,
     contents?: string | RegExp,
 }
+
+export interface Pagination {
+    page: number,
+    limit: number,
+    total: number
+}
