@@ -1,8 +1,14 @@
-## Installation
+## Getting Started
 
 ```bash
 $ npm install
+
+$ npm run start:dev
 ```
+
+
+-------------------------
+
 
 ## Running the app
 
@@ -31,4 +37,4 @@ $ npm run test:cov
 ```
 
 nest - mongoose
-https://jakekwak.gitbook.io/nestjs/recipes/untitled-1
+참조 https://jakekwak.gitbook.io/nestjs/recipes/untitled-1
