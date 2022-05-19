@@ -4,7 +4,15 @@
 $ npm install
 
 $ npm run start:dev
+또는 
+$ npm run start
 ```
+
+만약 이후 실행이 되지 않는다면 
+```bash
+$ npm install --force
+```
+후 재실행 부탁드립니다.
 
 
 -------------------------
