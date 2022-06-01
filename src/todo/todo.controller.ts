@@ -37,9 +37,14 @@ export class TodoController {
         return this.todoService.findOne(+id);
     }
 
-    @Patch(':id')
+    @Post(':id')
     update(@Param('id') id: string, @Body() updateTodoDto: UpdateTodoDto) {
         return this.todoService.update(+id, updateTodoDto);
+    }
+
+    @Patch(':id')
+    updateIsCompleted(@Param('id') id: string, @Query('isCompleted') isCompleted: boolean) {
+        return this.todoService.updateIsCompleted(+id, isCompleted);
     }
 
     @Delete(':id')

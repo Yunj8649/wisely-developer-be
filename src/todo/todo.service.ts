@@ -71,6 +71,65 @@ export class TodoService {
         return await this.todoModel.findOne({ deletedAt: null, id }).exec();
     }
 
+    async updateIsCompleted(id: number, isCompleted: boolean) {
+        const todo = await this.todoModel.findOne({ deletedAt: null, id }).exec();
+        if ( !todo ) {
+            throw new HttpException({
+                code: HttpStatus.NOT_FOUND,
+                error: `TODO_${id}_NOT_FOUND`,
+                message: 'todo를 찾을 수 없습니다.',
+            }, HttpStatus.NOT_FOUND);
+        }
+        const { refIds } = todo;
+
+        if ( refIds ) {
+            let refIdsCheck = await this.refIdsValidation(refIds, refIds);
+            let message = '올바르지 않은 todo id가 포함되어 있습니다.';
+            if (refIds.includes(id)) {
+                message = '본인 id는 포함 할 수 없습니다.';
+                refIdsCheck = false;
+            }
+            if ( !refIdsCheck ) {
+                throw new HttpException({
+                    code: HttpStatus.BAD_REQUEST,
+                    error: 'CHECK_REQUIRED_REF_IDS',
+                    message,
+                }, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        if ( isCompleted ) {
+            const refTodos = await this.todoModel.find({ id: { $in: refIds }}).exec();
+            const completedTodos = refTodos.filter(todo => todo.isCompleted);
+            if ( completedTodos.length !== (refIds).length ) {
+                throw new HttpException({
+                    code: HttpStatus.BAD_REQUEST,
+                    error: 'REQUIRED_ALL_REFTODO_COMPLETED',
+                    message: '참조된 todo 중 완료되지 않은 todo가 있습니다.',
+                }, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        if ( !isCompleted ) {
+            const refTodos = await this.todoModel.find({ refIds: { $in: id }, isCompleted: true }).exec();
+            if ( refTodos.length > 0 ) {
+                throw new HttpException({
+                    code: HttpStatus.BAD_REQUEST,
+                    error: 'REQUIRED_ALL_REFTODO_COMPLETED',
+                    message: '참조하고 있는 완료된 todo가 있습니다.',
+                }, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        return await this.todoModel.findOneAndUpdate(
+            { id },
+            { $set: { 
+                isCompleted,
+                updatedAt: new Date(),
+            } },
+        );
+    }
+
     async update(id: number, updateTodoDto: UpdateTodoDto) {
         const todo = await this.todoModel.findOne({ deletedAt: null, id }).exec();
         if ( !todo ) {
@@ -80,7 +139,7 @@ export class TodoService {
                 message: 'todo를 찾을 수 없습니다.',
             }, HttpStatus.NOT_FOUND);
         }
-        const { contents = null, isCompleted, refIds } = updateTodoDto;
+        const { contents = null, refIds } = updateTodoDto;
 
         if ( contents !== null && contents.length === 0 ) {
             throw new HttpException({
@@ -102,18 +161,6 @@ export class TodoService {
                     code: HttpStatus.BAD_REQUEST,
                     error: 'CHECK_REQUIRED_REF_IDS',
                     message,
-                }, HttpStatus.BAD_REQUEST);
-            }
-        }
-
-        if ( isCompleted && Boolean( isCompleted ) ) {
-            const refTodos = await this.todoModel.find({ id: { $in: todo.refIds }}).exec();
-            const completedTodos = refTodos.filter(todo => todo.isCompleted);
-            if ( completedTodos.length !== (todo.refIds).length ) {
-                throw new HttpException({
-                    code: HttpStatus.BAD_REQUEST,
-                    error: 'REQUIRED_ALL_REFTODO_COMPLETED',
-                    message: '참조된 todo 중 완료되지 않은 todo가 있습니다.',
                 }, HttpStatus.BAD_REQUEST);
             }
         }
