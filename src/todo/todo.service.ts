@@ -80,28 +80,11 @@ export class TodoService {
                 message: 'todo를 찾을 수 없습니다.',
             }, HttpStatus.NOT_FOUND);
         }
-        const { refIds } = todo;
-
-        if ( refIds ) {
-            let refIdsCheck = await this.refIdsValidation(refIds, refIds);
-            let message = '올바르지 않은 todo id가 포함되어 있습니다.';
-            if (refIds.includes(id)) {
-                message = '본인 id는 포함 할 수 없습니다.';
-                refIdsCheck = false;
-            }
-            if ( !refIdsCheck ) {
-                throw new HttpException({
-                    code: HttpStatus.BAD_REQUEST,
-                    error: 'CHECK_REQUIRED_REF_IDS',
-                    message,
-                }, HttpStatus.BAD_REQUEST);
-            }
-        }
 
         if ( isCompleted ) {
-            const refTodos = await this.todoModel.find({ id: { $in: refIds }}).exec();
+            const refTodos = await this.todoModel.find({ id: { $in: todo.refIds }}).exec();
             const completedTodos = refTodos.filter(todo => todo.isCompleted);
-            if ( completedTodos.length !== (refIds).length ) {
+            if ( completedTodos.length !== (todo.refIds).length ) {
                 throw new HttpException({
                     code: HttpStatus.BAD_REQUEST,
                     error: 'REQUIRED_ALL_REFTODO_COMPLETED',
@@ -141,7 +124,7 @@ export class TodoService {
         }
         const { contents = null, refIds } = updateTodoDto;
 
-        if ( contents !== null && contents.length === 0 ) {
+        if ( !contents?.length ) {
             throw new HttpException({
                 code: HttpStatus.BAD_REQUEST,
                 error: 'REQUIRED_CONTENTS',
